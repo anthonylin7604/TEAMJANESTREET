@@ -187,7 +187,7 @@ with tab_simulator:
 # ===============================
 with tab_insights:
     st.header("🤖 AI Financial Insights")
-    advice = generate_advice(liquidity_ratio, score)
+    advice = generate_advice(liquidity_ratio, score, savings_rate)
     for tip in advice:
         st.write(f"- {tip}")
 
