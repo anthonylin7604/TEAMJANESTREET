@@ -34,12 +34,12 @@ if st.sidebar.button("Connect Selected Accounts"):
     with st.spinner("Fetching data..."):
         time.sleep(1)
     if connect_bank:
-        st.session_state.connected_data["cash"] = 12000
+        st.session_state.connected_data["cash"] = 50000
     if connect_broker:
-        st.session_state.connected_data["stocks"] = 35000
-        st.session_state.connected_data["bonds"] = 8000
+        st.session_state.connected_data["stocks"] = 20000
+        st.session_state.connected_data["bonds"] = 10000
     if connect_crypto:
-        st.session_state.connected_data["crypto"] = 4500
+        st.session_state.connected_data["crypto"] = 10000
     st.success("Accounts connected successfully!")
 
 # Cash/Assets Inputs
@@ -86,6 +86,7 @@ private_assets = sum(asset["value"] for asset in st.session_state.private_assets
 with tab_overview:
     st.header("📊 Financial Overview")
 
+    # Total wealth and savings
     total_wealth = cash + stocks + bonds + crypto + private_assets
     savings = monthly_income - monthly_expenses
     savings_rate = savings / monthly_income if monthly_income > 0 else 0
@@ -98,13 +99,31 @@ with tab_overview:
     col3.metric("Savings Rate", f"{savings_rate*100:.1f}%")
     col4.metric("Wealth Wellness Score", f"{score}/100")
 
+    # ------------------------------
     # Liquidity
-    liquidity_ratio = cash / monthly_expenses if monthly_expenses>0 else 0
-    st.subheader("Liquidity")
-    st.progress(min(liquidity_ratio/6,1))
-    st.write(f"{liquidity_ratio:.1f} months of expenses covered")
+    # ------------------------------
+    # Simulate liquidity including monthly savings (optional)
+    projected_cash = cash + max(savings, 0)  # only add positive savings
+    liquidity_ratio = projected_cash / monthly_expenses  # months of expenses covered
 
-    # Wealth Trend
+    st.subheader("Liquidity")
+    st.write(f"Months of expenses covered: **{liquidity_ratio:.2f}**")
+
+    # Progress bar capped at 12 months
+    progress = min(liquidity_ratio / 12, 1.0)
+    st.progress(progress)
+
+    # Color-coded liquidity message
+    if liquidity_ratio >= 6:
+        st.success("Excellent emergency fund coverage")
+    elif liquidity_ratio >= 3:
+        st.warning("Moderate liquidity buffer")
+    else:
+        st.error("Low liquidity risk")
+
+    # ------------------------------
+    # Wealth Trend Tracker
+    # ------------------------------
     st.subheader("Wealth Trend")
     if st.button("Save Portfolio Snapshot", key="save_snapshot"):
         st.session_state.wealth_history.append({"date": pd.Timestamp.now(), "wealth": total_wealth})
