@@ -77,15 +77,19 @@ The **Simulator page** projects future wealth using Monte Carlo simulations.
 """)
 
 # ===============================
-# Session State
+# Session State Initialization
 # ===============================
-
 if "connected_data" not in st.session_state:
     st.session_state.connected_data = {}
 
 if "private_assets_list" not in st.session_state:
     st.session_state.private_assets_list = []
 
+if "historical_data" not in st.session_state:
+    st.session_state.historical_data = None  # initialize to None
+
+if "score_history" not in st.session_state:
+    st.session_state.score_history = []
 # ===============================
 # Sidebar
 # ===============================
@@ -116,14 +120,14 @@ if st.sidebar.button("Connect Accounts"):
         time.sleep(1)
 
     if connect_bank:
-        st.session_state.connected_data["cash"] = np.random.randint(30000,80000)
+        st.session_state.connected_data["cash"] = np.random.randint(30000,35000)
 
     if connect_broker:
-        st.session_state.connected_data["stocks"] = np.random.randint(15000,60000)
-        st.session_state.connected_data["bonds"] = np.random.randint(5000,20000)
+        st.session_state.connected_data["stocks"] = np.random.randint(32000,57000)
+        st.session_state.connected_data["bonds"] = np.random.randint(21000,35000)
 
     if connect_crypto:
-        st.session_state.connected_data["crypto"] = np.random.randint(2000,20000)
+        st.session_state.connected_data["crypto"] = np.random.randint(4000,42000)
 
     # generate historical dataset
     st.session_state.historical_data = generate_historical_data()
@@ -180,10 +184,14 @@ total_wealth = cash + stocks + bonds + crypto + private_assets
 savings = monthly_income - monthly_expenses
 savings_rate = savings / monthly_income if monthly_income>0 else 0
 
-score = calculate_wealth_score(
-    cash,stocks,bonds,crypto,
-    private_assets,monthly_income,monthly_expenses
+# Calculate wealth score and store sub-scores
+score, liq_pts, div_pts, sav_pts = calculate_wealth_score(
+    cash, stocks, bonds, crypto,
+    private_assets, monthly_income, monthly_expenses
 )
+
+# Store sub-scores in session state for the overview gauge display
+st.session_state["sub_scores"] = (liq_pts, div_pts, sav_pts)
 
 projected_cash = cash + max(savings,0)
 liquidity_ratio = projected_cash / monthly_expenses if monthly_expenses>0 else 0
@@ -192,7 +200,6 @@ liquidity_ratio = projected_cash / monthly_expenses if monthly_expenses>0 else 0
 # OVERVIEW PAGE
 # ===============================
 if selected == "Overview":
-
     st.subheader("📊 Financial Overview")
 
     # Top metrics
@@ -200,11 +207,33 @@ if selected == "Overview":
     col1.metric("Net Worth", f"${total_wealth:,.0f}")
     col2.metric("Monthly Savings", f"${savings:,.0f}")
     col3.metric("Savings Rate", f"{savings_rate*100:.1f}%")
-
     st.divider()
 
-    # Bottom section: Wealth Score gauge + Liquidity bar
-    col1, col2 = st.columns([1, 1])
+    # -----------------------
+    # Compute last month's score from historical data
+    # -----------------------
+    last_month_score = 0
+    if st.session_state.historical_data is not None and len(st.session_state.historical_data) >= 2:
+        last_row = st.session_state.historical_data.iloc[-2]
+        last_month_score, _, _, _ = calculate_wealth_score(
+            cash=last_row['cash'],
+            stocks=last_row['stocks'],
+            bonds=last_row['bonds'],
+            crypto=last_row['crypto'],
+            private_assets=private_assets,  # current value
+            income=monthly_income,
+            expenses=monthly_expenses
+        )
+        last_month_score = min(last_month_score, 100)
+
+    # Current wealth score capped
+    score = min(score, 100)
+    score_change = score - last_month_score
+
+    # -----------------------
+    # Wealth Score Gauge + Liquidity Bar
+    # -----------------------
+    col1, col2 = st.columns([1,1])
 
     # Wealth Score Gauge
     with col1:
@@ -221,32 +250,24 @@ if selected == "Overview":
                     {'range':[40,70], 'color':'khaki'},
                     {'range':[70,100], 'color':'lightgreen'}
                 ],
-                'threshold': {
-                    'line': {'color': "black", 'width': 4},
-                    'thickness': 0.75,
-                    'value': score
-                }
+                'threshold': {'line': {'color': "black", 'width': 4}, 'thickness':0.75, 'value': score}
             }
         ))
         gauge.update_layout(height=300, margin=dict(t=20,b=20))
-        st.plotly_chart(gauge, use_container_width=True, key="wealth_gauge")
+        st.plotly_chart(gauge, use_container_width=True)
+        st.metric("Change from last month", f"{score_change:+d} pts", delta=f"{score_change:+d}")
 
     # Liquidity Health Bar
     with col2:
         st.subheader("Emergency Fund Coverage")
         st.write("Months Covered")
         progress = min(liquidity_ratio / 12, 1)
-        st.progress(progress)  # default thin bar
-
-        # Thick bar workaround using st.markdown
         bar_length = int(progress * 100)
         st.markdown(f"""
         <div style="background-color:#e0e0e0; border-radius:10px; width:100%; height:25px;">
             <div style="background-color:#00cc96; width:{bar_length}%; height:100%; border-radius:10px;"></div>
         </div>
         """, unsafe_allow_html=True)
-
-        # Label + status
         st.write(f"{liquidity_ratio:.2f} months")
         if liquidity_ratio >= 6:
             st.success("Strong emergency fund")
