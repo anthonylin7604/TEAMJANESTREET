@@ -3,12 +3,13 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import time
+import numpy as np
+from streamlit_option_menu import option_menu
 
 from wealth_score import calculate_wealth_score
 from ai_insights import generate_advice
 from simulator import simulate_growth_monte_carlo
-
-from streamlit_option_menu import option_menu
+from data_simulation import generate_historical_data
 
 st.set_page_config(page_title="Wealth Wellness Hub", layout="wide")
 
@@ -18,26 +19,15 @@ st.set_page_config(page_title="Wealth Wellness Hub", layout="wide")
 
 st.markdown("""
 <style>
-
-.main {
-    background-color:#f7f9fc;
-}
-
+.main { background-color:#f7f9fc; }
 [data-testid="metric-container"] {
     background-color:white;
     border-radius:15px;
     padding:15px;
     box-shadow:0px 4px 12px rgba(0,0,0,0.05);
 }
-
-h1,h2,h3{
-    margin-top:0.5rem;
-}
-
-.stButton>button{
-    border-radius:10px;
-}
-
+h1,h2,h3{ margin-top:0.5rem; }
+.stButton>button{ border-radius:10px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -50,20 +40,54 @@ st.caption("Your personal financial health dashboard")
 st.divider()
 
 # ===============================
+# Instructions
+# ===============================
+
+with st.expander("📘 How to Use Wealth Wellness Hub"):
+
+    st.markdown("""
+**Step 1 — Connect Accounts**
+
+Use the sidebar to connect financial accounts and track other assets:
+
+- 🏦 Bank Account → Cash balance  
+- 📈 Stock Broker → Stocks and bonds  
+- 🪙 Crypto Wallet → Cryptocurrency holdings 
+- 🏠 Private Assets → Real Estate, Vehicles, etc.
+- 💵 Monthly Income and Expenditure
+
+Click **Connect Accounts** to load financial data.
+
+**Step 2 — Review Dashboard**
+
+View:
+
+- Net worth
+- Portfolio allocation
+- Liquidity health
+- Wealth score
+
+**Step 3 — Explore Portfolio**
+
+Use the **Portfolio page** to analyze asset allocation and historical values.
+
+**Step 4 — Run Simulations**
+
+The **Simulator page** projects future wealth using Monte Carlo simulations.
+""")
+
+# ===============================
 # Session State
 # ===============================
 
 if "connected_data" not in st.session_state:
     st.session_state.connected_data = {}
 
-if "wealth_history" not in st.session_state:
-    st.session_state.wealth_history = []
-
 if "private_assets_list" not in st.session_state:
     st.session_state.private_assets_list = []
 
 # ===============================
-# Sidebar Controls
+# Sidebar
 # ===============================
 
 st.sidebar.title("⚙️ Controls")
@@ -79,7 +103,7 @@ selected = option_menu(
 st.sidebar.divider()
 
 # ===============================
-# Connected Accounts Simulation
+# Connect Accounts
 # ===============================
 
 connect_bank = st.sidebar.checkbox("🏦 Bank Account")
@@ -87,36 +111,33 @@ connect_broker = st.sidebar.checkbox("📈 Stock Broker")
 connect_crypto = st.sidebar.checkbox("🪙 Crypto Wallet")
 
 if st.sidebar.button("Connect Accounts"):
-    with st.spinner("Fetching data..."):
+
+    with st.spinner("Fetching account data..."):
         time.sleep(1)
 
     if connect_bank:
-        st.session_state.connected_data["cash"] = 50000
+        st.session_state.connected_data["cash"] = np.random.randint(30000,80000)
 
     if connect_broker:
-        st.session_state.connected_data["stocks"] = 20000
-        st.session_state.connected_data["bonds"] = 10000
+        st.session_state.connected_data["stocks"] = np.random.randint(15000,60000)
+        st.session_state.connected_data["bonds"] = np.random.randint(5000,20000)
 
     if connect_crypto:
-        st.session_state.connected_data["crypto"] = 10000
+        st.session_state.connected_data["crypto"] = np.random.randint(2000,20000)
 
-    st.success("Accounts connected!")
+    # generate historical dataset
+    st.session_state.historical_data = generate_historical_data()
+
+    st.success("Accounts connected successfully!")
 
 # ===============================
 # Financial Inputs
 # ===============================
 
-if st.session_state.connected_data.get("cash") is not None:
-    cash = st.session_state.connected_data.get("cash",0)
-    stocks = st.session_state.connected_data.get("stocks",0)
-    bonds = st.session_state.connected_data.get("bonds",0)
-    crypto = st.session_state.connected_data.get("crypto",0)
-
-else:
-    cash = st.sidebar.number_input("Cash",0)
-    stocks = st.sidebar.number_input("Stocks / ETFs",0)
-    bonds = st.sidebar.number_input("Bonds",0)
-    crypto = st.sidebar.number_input("Crypto",0)
+cash = st.session_state.connected_data.get("cash",0)
+stocks = st.session_state.connected_data.get("stocks",0)
+bonds = st.session_state.connected_data.get("bonds",0)
+crypto = st.session_state.connected_data.get("crypto",0)
 
 monthly_income = st.sidebar.number_input("Monthly Income",0)
 monthly_expenses = st.sidebar.number_input("Monthly Expenses",1)
@@ -128,8 +149,11 @@ monthly_expenses = st.sidebar.number_input("Monthly Expenses",1)
 with st.sidebar.expander("Add Private Asset"):
 
     asset_name = st.text_input("Asset Name")
-    asset_type = st.selectbox("Asset Type",
-        ["Real Estate","Vehicle","Business Equity","Collectible","Other"])
+
+    asset_type = st.selectbox(
+        "Asset Type",
+        ["Real Estate","Vehicle","Business Equity","Collectible","Other"]
+    )
 
     asset_value = st.number_input("Market Value",0)
     loan_value = st.number_input("Outstanding Loan",0)
@@ -154,7 +178,6 @@ private_assets = sum(a["value"] for a in st.session_state.private_assets_list)
 
 total_wealth = cash + stocks + bonds + crypto + private_assets
 savings = monthly_income - monthly_expenses
-
 savings_rate = savings / monthly_income if monthly_income>0 else 0
 
 score = calculate_wealth_score(
@@ -168,111 +191,69 @@ liquidity_ratio = projected_cash / monthly_expenses if monthly_expenses>0 else 0
 # ===============================
 # OVERVIEW PAGE
 # ===============================
-
 if selected == "Overview":
 
     st.subheader("📊 Financial Overview")
 
-    col1,col2,col3,col4 = st.columns(4)
-
-    col1.metric("Net Worth",f"${total_wealth:,.0f}")
-    col2.metric("Monthly Savings",f"${savings:,.0f}")
-    col3.metric("Savings Rate",f"{savings_rate*100:.1f}%")
-    col4.metric("Wealth Score",f"{score}/100")
+    # Top metrics
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Net Worth", f"${total_wealth:,.0f}")
+    col2.metric("Monthly Savings", f"${savings:,.0f}")
+    col3.metric("Savings Rate", f"{savings_rate*100:.1f}%")
 
     st.divider()
 
-    colA,colB = st.columns([2,1])
+    # Bottom section: Wealth Score gauge + Liquidity bar
+    col1, col2 = st.columns([1, 1])
 
-    # Wealth Trend
+    # Wealth Score Gauge
+    with col1:
+        st.subheader("Wealth Score")
+        gauge = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=score,
+            number={'suffix': "/100"},
+            gauge={
+                'axis': {'range':[0,100]},
+                'bar': {'color': "blue"},
+                'steps': [
+                    {'range':[0,40], 'color':'lightcoral'},
+                    {'range':[40,70], 'color':'khaki'},
+                    {'range':[70,100], 'color':'lightgreen'}
+                ],
+                'threshold': {
+                    'line': {'color': "black", 'width': 4},
+                    'thickness': 0.75,
+                    'value': score
+                }
+            }
+        ))
+        gauge.update_layout(height=300, margin=dict(t=20,b=20))
+        st.plotly_chart(gauge, use_container_width=True, key="wealth_gauge")
 
-    with colA:
+    # Liquidity Health Bar
+    with col2:
+        st.subheader("Emergency Fund Coverage")
+        st.write("Months Covered")
+        progress = min(liquidity_ratio / 12, 1)
+        st.progress(progress)  # default thin bar
 
-        st.subheader("Wealth Trend")
+        # Thick bar workaround using st.markdown
+        bar_length = int(progress * 100)
+        st.markdown(f"""
+        <div style="background-color:#e0e0e0; border-radius:10px; width:100%; height:25px;">
+            <div style="background-color:#00cc96; width:{bar_length}%; height:100%; border-radius:10px;"></div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        if st.button("Save Snapshot"):
-
-            st.session_state.wealth_history.append({
-                "date":pd.Timestamp.now(),
-                "wealth":total_wealth
-            })
-
-        if st.session_state.wealth_history:
-
-            history_df = pd.DataFrame(st.session_state.wealth_history)
-
-            fig = px.line(history_df,x="date",y="wealth",markers=True)
-
-            fig.update_layout(template="plotly_white",height=400)
-
-            st.plotly_chart(fig,use_container_width=True)
-
-        else:
-            st.info("Save snapshots to track wealth.")
-
-    # Liquidity
-
-    with colB:
-
-        st.subheader("Liquidity")
-
-        st.metric("Months Covered",f"{liquidity_ratio:.2f}")
-
-        progress = min(liquidity_ratio/12,1)
-        st.progress(progress)
-
+        # Label + status
+        st.write(f"{liquidity_ratio:.2f} months")
         if liquidity_ratio >= 6:
             st.success("Strong emergency fund")
         elif liquidity_ratio >= 3:
             st.warning("Moderate liquidity")
         else:
             st.error("Low liquidity")
-
-    st.divider()
-
-    # Wealth Score Gauge
-
-    st.subheader("Financial Health Score")
-
-    gauge = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=score,
-        gauge={
-            "axis":{"range":[0,100]},
-            "steps":[
-                {"range":[0,40],"color":"lightcoral"},
-                {"range":[40,70],"color":"khaki"},
-                {"range":[70,100],"color":"lightgreen"},
-            ]
-        }
-    ))
-
-    gauge.update_layout(height=300)
-
-    st.plotly_chart(gauge,use_container_width=True)
-
-    # Portfolio Summary
-
-    st.subheader("Portfolio Summary")
-
-    s1,s2,s3 = st.columns(3)
-
-    s1.metric("Invested Assets",f"${stocks+bonds+crypto:,.0f}")
-    s2.metric("Liquid Assets",f"${cash:,.0f}")
-    s3.metric("Private Assets",f"${private_assets:,.0f}")
-
-    # Risk Indicator
-
-    if total_wealth > 0:
-
-        crypto_ratio = crypto / total_wealth
-
-        if crypto_ratio > 0.3:
-            st.warning("High exposure to volatile assets")
-        elif crypto_ratio > 0.1:
-            st.info("Moderate exposure to crypto")
-        else:
-            st.success("Low portfolio volatility")
 
 # ===============================
 # PORTFOLIO PAGE
@@ -290,38 +271,54 @@ if selected == "Portfolio":
     df = df[df["Value"]>0]
 
     if not df.empty:
-
-        col1,col2 = st.columns(2)
-
-        with col1:
-
-            fig = px.pie(df,names="Asset",values="Value",hole=0.45)
-            fig.update_layout(template="plotly_white")
-
-            st.plotly_chart(fig,use_container_width=True)
-
-        with col2:
-
-            bar = px.bar(df,x="Asset",y="Value",text="Value")
-
-            bar.update_layout(template="plotly_white")
-
-            st.plotly_chart(bar,use_container_width=True)
+        # Make pie chart larger and more readable
+        fig = px.pie(
+            df,
+            names="Asset",
+            values="Value",
+            hole=0.35,  # slightly smaller hole for bigger slices
+            title="Portfolio Allocation"
+        )
+        fig.update_traces(
+            textinfo="label+percent",
+            textposition="inside",
+            textfont_size=16  # bigger text inside slices
+        )
+        fig.update_layout(
+            template="plotly_white",
+            height=550,  # increase height for more space
+            margin=dict(t=60, b=20, l=20, r=20)
+        )
+        st.plotly_chart(fig, use_container_width=True, key="portfolio_pie")
 
     st.divider()
 
-    st.subheader("Private Assets")
+    
+    st.subheader("📊 Historical Portfolio Value")
 
-    if st.session_state.private_assets_list:
+    if "historical_data" in st.session_state:
 
-        for asset in st.session_state.private_assets_list:
+        df = st.session_state.historical_data
 
-            st.info(
-                f"{asset['name']} ({asset['type']}) — ${asset['value']:,.0f}"
-            )
+        timeframe = st.selectbox(
+            "Select Time Range",
+            ["1 Year","3 Years","5 Years"]
+        )
 
-    else:
-        st.info("No private assets added")
+        if timeframe == "1 Year":
+            df = df.tail(12)
+        elif timeframe == "3 Years":
+            df = df.tail(36)
+
+        fig = px.line(
+            df,
+            x="date",
+            y=["cash", "stocks", "crypto"],
+            labels={"value": "Amount ($)", "variable": "Asset Type"},  
+            title="Portfolio Value Over Time"
+        )
+        fig.update_layout(template="plotly_white", height=400)
+        st.plotly_chart(fig, use_container_width=True, key="historical_chart")
 
 # ===============================
 # SIMULATOR
@@ -329,67 +326,57 @@ if selected == "Portfolio":
 
 if selected == "Simulator":
 
-    st.subheader("🔮 Monte Carlo Wealth Simulator")
+    st.subheader("📈 Monte Carlo Wealth Simulator")
 
-    monthly_investment = st.number_input("Monthly Investment",0,500)
+    monthly_investment = st.number_input("Monthly Investment ($)")
+    years = st.slider("Investment Horizon",1,100,10)
 
-    years = st.slider("Investment Horizon",1,30,10)
-
-    expected_return = st.slider("Expected Return (%)",1,15,8)/100
-
-    annual_volatility = st.slider("Volatility (%)",5,50,15)/100
-
-    n_simulations = st.number_input("Simulations",100,5000,1000,100)
-
-    inflation_rate = st.number_input("Inflation (%)",0,10,3)/100
+    annual_return = st.slider("Expected Return (%)",1,15,8)/100
+    annual_volatility = st.slider("Volatility (%)",5,40,15)/100
+    inflation_rate = st.slider("Inflation (%)", min_value=0.0, max_value=10.0, value=3.0, step=0.01, format="%.2f")/100
 
     median,low,high,years_axis = simulate_growth_monte_carlo(
         total_wealth,
         monthly_investment,
         years,
-        expected_return,
+        annual_return,  
         annual_volatility,
-        n_simulations,
+        1000,
         inflation_rate
     )
 
     fig = go.Figure()
 
     fig.add_trace(go.Scatter(
-        x=years_axis,y=high,
+        x=years_axis,
+        y=high,
         line=dict(color="lightblue"),
-        showlegend=False
+        name="90th Percentile"
     ))
 
     fig.add_trace(go.Scatter(
-        x=years_axis,y=low,
+        x=years_axis,
+        y=low,
         fill="tonexty",
         line=dict(color="lightblue"),
         fillcolor="rgba(173,216,230,0.4)",
-        name="10-90%"
+        name="10th Percentile"
     ))
 
     fig.add_trace(go.Scatter(
-        x=years_axis,y=median,
+        x=years_axis,
+        y=median,
         line=dict(color="blue",width=3),
-        name="Median"
+        name="Median Projection"
     ))
 
     fig.update_layout(
         template="plotly_white",
-        height=500,
-        title="Projected Wealth Growth"
+        title="Projected Portfolio Growth",
+        height=500
     )
 
     st.plotly_chart(fig,use_container_width=True)
-
-    st.metric("Projected Median Wealth",f"${median[-1]:,.0f}")
-
-    future_year = years_axis[-1]
-
-    growth_rate = ((median[-1]/total_wealth)**(1/future_year)-1) if total_wealth>0 else 0
-
-    st.metric("Estimated Annual Growth",f"{growth_rate*100:.2f}%")
 
 # ===============================
 # INSIGHTS
@@ -402,31 +389,13 @@ if selected == "Insights":
     advice = generate_advice(liquidity_ratio,score,savings_rate)
 
     for i,tip in enumerate(advice):
-
         st.markdown(f"""
-        **Insight {i+1}**
+**Insight {i+1}**
 
-        {tip}
+{tip}
 
-        ---
-        """)
-
-    st.subheader("Financial Independence Tracker")
-
-    if monthly_expenses > 0:
-
-        fire_number = monthly_expenses*12*25
-
-        progress = total_wealth / fire_number if fire_number>0 else 0
-
-        years_to_fi = (fire_number-total_wealth)/(savings*12) if savings>0 else None
-
-        st.metric("FI Target",f"${fire_number:,.0f}")
-
-        st.progress(min(progress,1))
-
-        if years_to_fi:
-            st.metric("Years to FI",f"{years_to_fi:.1f}")
+---
+""")
 
 # ===============================
 # EXPORT
@@ -444,8 +413,6 @@ if selected == "Export":
         "Private Assets":[private_assets],
         "Monthly Income":[monthly_income],
         "Monthly Expenses":[monthly_expenses],
-        "Savings":[savings],
-        "Savings Rate":[savings_rate],
         "Total Wealth":[total_wealth]
     })
 
