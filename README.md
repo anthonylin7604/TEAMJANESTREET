@@ -55,7 +55,7 @@ https://teamjanestreet-dj6sjkmhocinz289segskv.streamlit.app/
 
 ![Portfolio](screenshots/portfolio.png)
 
-![Historical_Data]((screenshots/historical.png))
+![Historical_Data](screenshots/historical.png)
 
 ![Simulation](screenshots/simulator.png)
 
